@@ -29,4 +29,10 @@ def detect_emotion(input: TextInput):
         ]
     )
     emotion = response.choices[0].message.content.strip()
+
+    # 防呆：GPT 偶爾會多標點或回不在清單內的詞
+    VALID = ["開心", "難過", "生氣"]
+    if emotion not in VALID:
+        emotion = next((e for e in VALID if e in emotion), "開心")
+
     return {"emotion": emotion}
