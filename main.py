@@ -1,8 +1,12 @@
+from dotenv import load_dotenv
+load_dotenv()
+
+from typing import Literal
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from openai import OpenAI
-import os
+from pydantic import BaseModel, Field
+from langchain.chat_models import init_chat_model
+from langchain_core.prompts import ChatPromptTemplate
 
 app = FastAPI()
 
@@ -14,25 +18,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
 
+# 前端傳進來的格式（沒變）
 class TextInput(BaseModel):
     text: str
 
+
+# 模型輸出的格式（新增）
+class EmotionResult(BaseModel):
+    """使用者文字的情緒分類結果"""
+    emotion: Literal["開心", "難過", "生氣"] = Field(
+        description="這句話表達的情緒"
+    )
+
+
+model = init_chat_model("gpt-4o-mini", model_provider="openai", temperature=0)
+classifier = model.with_structured_output(EmotionResult)
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "你是情緒分析專家。判斷使用者這句話的情緒，"
+               "只能從「開心」「難過」「生氣」三者中選一個。"),
+    ("human", "{text}"),
+])
+
+chain = prompt | classifier
+
+
 @app.post("/detect")
 def detect_emotion(input: TextInput):
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "system", "content": "你是情緒分析專家，只能回答「開心」、「難過」或「生氣」三個詞之一，不能有其他文字。"},
-            {"role": "user", "content": f"請判斷這句話的情緒：{input.text}"}
-        ]
-    )
-    emotion = response.choices[0].message.content.strip()
-
-    # 防呆：GPT 偶爾會多標點或回不在清單內的詞
-    VALID = ["開心", "難過", "生氣"]
-    if emotion not in VALID:
-        emotion = next((e for e in VALID if e in emotion), "開心")
-
-    return {"emotion": emotion}
+    result = chain.invoke({"text": input.text})
+    return {"emotion": result.emotion}

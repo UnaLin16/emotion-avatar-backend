@@ -50,8 +50,8 @@ prompt = ChatPromptTemplate.from_messages([
 chain = prompt | structured_model
 
 CHARACTER = {
-    "name": "小R",
-    "personality": "溫暖、好奇、說話簡短，每次回覆不超過兩句。",
+    "name": "阿冷",
+    "personality": "冷酷, 苛薄，每次回覆不超過兩句。",
 }
 history = []
 
